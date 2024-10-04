@@ -20,4 +20,4 @@ And to get a good sound level and quality :
 - hange the sound volume with a radio channel (potentiometer) or select a fixed volume value 
 - use an audio exciter instead of a regular loudspeaker
 
-  code runs on an ESP32 MCU and is available on this repo : 
+  code runs on an ESP32 MCU and is available on this repo : https://github.com/f2knpw/RC-plane-Sound-Machine/blob/master/ESP32_sound_generator.ino
