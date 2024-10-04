@@ -4,17 +4,7 @@ A friend of mine wanted a realistic RC plane warbird with "engine" and "machine 
 This project is also fully described on my hackaday's pages : https://hackaday.io/project/198182-rc-plane-sound-machine
 
 
-This kind of system already exists even with DIY solutions :
-
-here is a very good project : https://amaury-laurent.fr/bruiteur-pour-avion-de-modelisme/
-
-and an excellent commercial one "MrRCSound ASPIRE Sound System" but with a discontinued product 
-
-and another commercial system but with weak amplifier : https://www.mr-rcworld.co.uk/shop/realtime-engine-sound-playback-module/
-
-
-
-So I decided to build mine with the following features :
+I decided to build this system with the following features :
 
 play start engine sound when throttle stick leaves "zero" position
 seamlessly increase/decrease motor RPM sound with the throttle stick
