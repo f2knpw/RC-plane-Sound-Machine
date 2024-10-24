@@ -15,13 +15,19 @@ enum { statusIdle,
        statusStopping };
 int status = statusIdle;  //motor supposed stopped after booting the ESP32
 int speedIndex = -1, currentSpeedIndex = 0;
+int speedRaw = -1;
+int speedRawPrev = 1000;
 int shoot, previousShoot;
 int volIndex = 0, prevVolIndex = 0;
 int startDuration = 20000;  //duration of start music in ms
 long startTime, stopTime;
 int firstTime = 0;
-int hasSiren = 0; //by default no siren
-                  // =1 siren enabled ("gun channel" will be 3 staes (motor only, motor + siren, motor + siren + gun))
+int hasSiren = 0;  //by default no siren
+                   // =1 siren enabled ("gun channel" will be 3 staes (motor only, motor + siren, motor + siren + gun))
+int startThr = 40;
+int stopThr = 50;
+int down = 0;
+int up = 1;
 
 #define LED_PIN 22
 //DFPlayer
@@ -30,6 +36,7 @@ int hasSiren = 0; //by default no siren
 #define BUSY 26
 
 #define HAS_SIREN
+
 
 
 #define CMD_Play_Next 0x01
@@ -224,8 +231,8 @@ void PlaySoundLoop() {
 }
 void volume(uint8_t vol) {
   SendMp3Command(vol, 0, CMD_Specify_volume);
-  Serial.print ("volume set to ");
-  Serial.println (volIndex);
+  Serial.print("\tvolume set to ");
+  Serial.println(volIndex);
   delay(100);
 }
 
@@ -252,7 +259,10 @@ void setup() {
   if (err != ESP_OK) {
     Serial.printf("begin() err: %i", err);
   } else {
-    Serial.println("decoding Rx channels started");
+    Serial.println("***************");
+    Serial.println("program started");
+    Serial.println("***************");
+    Serial.println(" ");
   }
   status = statusIdle;
 
@@ -272,28 +282,55 @@ void setup() {
 
   //preferences.clear();              // Remove all preferences under the opened namespace
   //preferences.remove("counter");   // remove the counter key only
-  volIndex = preferences.getInt("volIndex", 20);
+  volIndex = preferences.getInt("volIndex", 30);
   prevVolIndex = volIndex;
   hasSiren = preferences.getInt("hasSiren", 0);
+  startThr = preferences.getInt("startThr", 40);  //throttle value where motor will start
+  stopThr = preferences.getInt("stopThr", 50);    //throttle value where motor will stop
+
+  Serial.println("read preferences :");
+  Serial.print("\tstart at ");
+  Serial.println(startThr);
+  Serial.print("\tstop at ");
+  Serial.println(stopThr);
+
   //preferences.end();  // Close the Preferences
-  
+
   volume(volIndex);  // set volume to default value
-  //delay(3000); 
+  Serial.println(" ");
+  Serial.println("start decoding : \n");
+
+
+  //delay(3000);
 }
 
 void loop() {
 
 
   // Reading the actual pulse width of Throttle channel
-  speedIndex = constrain((pwm_get_rawPwm(0) - 1000), 0, 1000);  //clip throttle value between 0 and 5
-  speedIndex = map(speedIndex, 0, 1000, 0, 5);
 
-  
+  speedRaw = constrain((pwm_get_rawPwm(0) - 1000), 0, 1000);  //clip throttle value between 0 and 5
+
+  //speedIndex = map(speedRaw, 0, 1000, 0, 5);
+  if (speedRaw > 800) speedIndex = 5;
+  else if (speedRaw > 600) speedIndex = 4;
+  else if (speedRaw > 400) speedIndex = 3;
+  else if (speedRaw > 200) speedIndex = 2;
+  else if (speedRaw > startThr) speedIndex = 1;
+  else speedIndex = 0;
+
+  if (speedRaw +5< speedRawPrev) down = 1;
+  else down = 0;
+  if (speedRaw > speedRawPrev + 3) up = 1;
+  else up = 0;
+  //Serial.print(down);
+  //Serial.print(" ");
+  //Serial.println(up);
   //Serial.print("speed\t");
   //Serial.print(speedIndex);
   shoot = constrain((pwm_get_rawPwm(1) - 1000), 0, 1000);  //get machine gun value between 0 and 1
   if (hasSiren == 0) shoot = map(shoot, 0, 1000, 0, 1);
-  else               shoot = map(shoot, 0, 1000, 0, 2);
+  else shoot = map(shoot, 0, 1000, 0, 2);
   // Serial.print("\tshoot\t");
   // Serial.println(shoot);
 
@@ -316,43 +353,47 @@ void loop() {
   switch (status) {  //handle motor and gun
     case statusIdle:
       startTime = millis();
-      if (speedIndex > 0) {
+      if ((speedRaw > startThr) && (up == 1)) {
         status = statusStarting;
         volume(volIndex);
         currentSpeedIndex = -1;  //will force exit from startmotor playing
         PlaySound(0x00, 0);      //PlaySound(motor_start)/Play the 1.mp3 (motor start)
         Serial.println("starting");
+        Serial.print("stop at ");
+        Serial.println(stopThr);
       }
       break;
     case statusStarting:
-      if (((millis() - startTime) > startDuration) || (startPlayed == true)) { // wait for the startPayed event of the startmotor track (or failsafe time out)
+      if (((millis() - startTime) > startDuration) || (startPlayed == true)) {  // wait for the startPayed event of the startmotor track (or failsafe time out)
         status = statusRunning;
         PlaySound(0x00, 1);  //PlaySound(1_mot.wav) now go to the 001 rpm sound
         PlaySoundLoop();
         Serial.println("running");
+      } else {
+        if (speedRaw == 0) status = statusStopping; //shutdown motor immediately if throttle = 0
       }
       break;
     case statusRunning:
       stopTime = millis();
+      if ((speedRaw < stopThr) && (down == 1)) {  // change status to stop motor if below low threshold and decreasing throttle
+        status = statusStopping;
+      }
       if ((speedIndex != currentSpeedIndex) || (shoot != previousShoot)) {
         currentSpeedIndex = speedIndex;
+        Serial.print ("playing shoot ");
+        Serial.print (shoot);
+        Serial.print (", file ");
+        Serial.println(speedIndex);
         previousShoot = shoot;
-        if (speedIndex == 0) {  // change status to stop motor
-          status = statusStopping;
-        } else {
-          PlaySound(shoot, speedIndex);  //Play the speedIndex.wav (motor run (+ gun if shoot)) and loop
-          PlaySoundLoop();
-        }
+        PlaySound(shoot, speedIndex);  //Play the speedIndex.wav (motor run (+ gun if shoot)) and loop
+        PlaySoundLoop();
       }
+
       break;
     case statusStopping:
-      if (speedIndex == 0) {
-        if ((millis() - stopTime) > 100) {
-          PlaySound(0x00, 6);  //Play the 06_motorStop.wav (motor stop) and do not loop
-          Serial.println("stopping");
-          status = statusIdle;
-        }
-      } else status = statusRunning;
+      PlaySound(0x00, 6);  //Play the 06_motorStop.wav (motor stop) and do not loop
+      Serial.println("stopping");
+      status = statusIdle;
       break;
     default:
       // statements
@@ -361,13 +402,13 @@ void loop() {
 
   //DFPlayer
   ReceiveMp3Command();
-  digitalWrite(LED_PIN, !digitalRead(BUSY));    //if you want to use BUSY signal from DFPlayer 
+  digitalWrite(LED_PIN, !digitalRead(BUSY));  //if you want to use BUSY signal from DFPlayer
 
-  if(Serial.available())                                   // if there is data comming from the ESP32 USB serial port 
+  if (Serial.available())  // if there is data comming from the ESP32 USB serial port
   {
-    String command = Serial.readStringUntil('\n');         // read string until meet newline character
-    
-    if((command.substring(0, 4) == "VOL=")||(command.substring(0, 4) == "vol=")||(command.substring(0, 4) == "Vol="))                  // VOL=xx to change the volume
+    String command = Serial.readStringUntil('\n');  // read string until meet newline character
+
+    if ((command.substring(0, 4) == "VOL=") || (command.substring(0, 4) == "vol=") || (command.substring(0, 4) == "Vol="))  // VOL=xx to change the volume
     {
       volIndex = command.substring(4).toInt();
       volIndex = constrain(volIndex, 0, 30);
@@ -375,13 +416,30 @@ void loop() {
       prevVolIndex = volIndex;
       preferences.putInt("volIndex", volIndex);
     }
-     if((command.substring(0, 4) == "SIR=")||(command.substring(0, 4) == "sir=")||(command.substring(0, 4) == "Sir="))                  // VOL=xx to change the volume
+    if ((command.substring(0, 4) == "SIR=") || (command.substring(0, 4) == "sir=") || (command.substring(0, 4) == "Sir="))  // VOL=xx to change the siren flag
     {
       hasSiren = command.substring(4).toInt();
       hasSiren = constrain(hasSiren, 0, 1);
       preferences.putInt("hasSiren", hasSiren);
-      Serial.print("has siren " );
+      Serial.print("\tsiren ");
       Serial.println(hasSiren);
     }
+    if ((command.substring(0, 4) == "STA=") || (command.substring(0, 4) == "sta=") || (command.substring(0, 4) == "Sta="))  // VOL=xx to change the start throttle
+    {
+      startThr = command.substring(4).toInt();
+      startThr = constrain(startThr, 0, 100);
+      preferences.putInt("startThr", startThr);
+      Serial.print("\tstart at ");
+      Serial.println(startThr);
+    }
+    if ((command.substring(0, 4) == "STO=") || (command.substring(0, 4) == "sto=") || (command.substring(0, 4) == "Sto="))  // VOL=xx to change the stop throttle
+    {
+      stopThr = command.substring(4).toInt();
+      stopThr = constrain(stopThr, 0, 200);
+      preferences.putInt("stopThr", stopThr);
+      Serial.print("\tstop at ");
+      Serial.println(stopThr);
+    }
   }
+  speedRawPrev = speedRaw;
 }
