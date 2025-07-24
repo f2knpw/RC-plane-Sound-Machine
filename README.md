@@ -24,5 +24,5 @@ And to get a good sound level and quality :
 
 <a href="http://www.youtube.com/watch?feature=player_embedded&v=JyeIZRpt9zY
 " target="_blank"><img src="http://img.youtube.com/vi/JyeIZRpt9zY/0.jpg" 
-alt="IMAGE ALT TEXT HERE" width="960" height="720" border="10" /></a>
+alt="IMAGE ALT TEXT HERE" width="1180" height="664" border="10" /></a>
 
