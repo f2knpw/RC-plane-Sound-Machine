@@ -22,7 +22,7 @@ And to get a good sound level and quality :
 
   code runs on an ESP32 MCU and is available on this repo : https://github.com/f2knpw/RC-plane-Sound-Machine/blob/master/ESP32_sound_generator.ino
 
-<a href="http://www.youtube.com/watch?feature=player_embedded&v=u8--JyeIZRpt9zY
-" target="_blank"><img src="http://img.youtube.com/vi/u8--JyeIZRpt9zY/0.jpg" 
+<a href="http://www.youtube.com/watch?feature=player_embedded&v=JyeIZRpt9zY
+" target="_blank"><img src="http://img.youtube.com/vi/JyeIZRpt9zY/0.jpg" 
 alt="IMAGE ALT TEXT HERE" width="960" height="720" border="10" /></a>
 
